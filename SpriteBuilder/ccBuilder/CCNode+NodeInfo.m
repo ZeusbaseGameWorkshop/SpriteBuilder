@@ -893,7 +893,11 @@ NSString * kAnimationOfPhysicsWarning = @"kAnimationOfPhysicsWarning";
     return NO;
 }
 
+<<<<<<< HEAD
 - (GLKMatrix4) startMatrix;
+=======
+- (CGAffineTransform) startTransform;
+>>>>>>> origin/v1.4
 {
     NodeInfo* info = self.userObject;
     return info.startMatrix;
