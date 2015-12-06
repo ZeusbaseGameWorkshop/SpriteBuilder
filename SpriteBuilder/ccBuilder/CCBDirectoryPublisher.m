@@ -42,6 +42,7 @@
 #import "PublishCCBOperation.h"
 #import "PublishImageOperation.h"
 #import "DateCache.h"
+#import "PublishResolutions.h"
 #import "NSString+Publishing.h"
 #import "PublishGeneratedFilesOperation.h"
 #import "PublishRenamedFilesLookup.h"
@@ -86,7 +87,8 @@
 
         self.modifiedDatesCache = [[DateCache alloc] init];
 
-        self.supportedFileExtensions = @[@"jpg", @"png", @"psd", @"pvr", @"ccz", @"plist", @"fnt", @"ttf",@"js", @"json", @"wav",@"mp3",@"m4a",@"caf",@"ccblang"];
+        self.supportedFileExtensions = @[@"jpg", @"png", @"psd", @"pvr", @"ccz", @"plist", @"fnt",
+                @"ttf",@"js", @"json", @"wav",@"mp3",@"m4a",@"caf",@"ccblang", @"sblang"];
 	}
 
     return self;
@@ -98,7 +100,7 @@
                             outDir:(NSString *)outDir
                         fileLookup:(id <PublishFileLookupProtocol>)fileLookup
 {
-    for (NSString* resolution in _resolutions)
+    for (NSNumber *resolution in _resolutions)
     {
         [self publishImageFile:srcFile to:dstFile isSpriteSheet:isSpriteSheet outputDir:outDir resolution:resolution intermediateProduct:NO fileLookup:fileLookup];
 	}
@@ -110,7 +112,7 @@
                       to:(NSString *)dstFilePath
            isSpriteSheet:(BOOL)isSpriteSheet
                outputDir:(NSString *)outputDir
-              resolution:(NSString *)resolution
+              resolution:(NSNumber *)resolution
      intermediateProduct:(BOOL)intermediateProduct
               fileLookup:(id<PublishFileLookupProtocol>)fileLookup
 {
@@ -287,8 +289,10 @@
         return YES;
     }
 
-    if ([self isFileSupportedByPublishing:fileName]
-        && !_projectSettings.onlyPublishCCBs)
+    BOOL hasCCBSuffix = [[fileName lowercaseString] hasSuffix:@"ccb"];
+    BOOL hasSBSuffix = [[fileName lowercaseString] hasSuffix:@"sb"];
+
+    if ([self isFileSupportedByPublishing:fileName])
     {
         NSString *dstFilePath = [outputDir stringByAppendingPathComponent:fileName];
 
@@ -306,8 +310,7 @@
             [self publishRegularFile:filePath to:dstFilePath];
         }
     }
-    else if (!isGeneratedSpriteSheet
-             && [[fileName lowercaseString] hasSuffix:@"ccb"])
+    else if (!isGeneratedSpriteSheet && (hasCCBSuffix || hasSBSuffix))
     {
         [self publishCCB:fileName filePath:filePath outputDir:outputDir];
     }
@@ -361,13 +364,6 @@
         return;
     }
 
-    // Skip the fold no .ccb files when onlyPublishCCBs is true
-    if (_projectSettings.onlyPublishCCBs
-        && ![dirPath containsCCBFile])
-    {
-        return;
-    }
-
     // This is a directory
     NSString *childPath = subPath
         ? [NSString stringWithFormat:@"%@/%@", subPath, directoryName]
@@ -415,28 +411,31 @@
 {
     NSDate *srcSpriteSheetDate = [publishDirectory latestModifiedDateOfPathIgnoringDirs:YES];
 
-	[_publishedSpriteSheetFiles addObject:[subPath stringByAppendingPathExtension:@"plist"]];
 
     [PublishSpriteSheetOperation resetSpriteSheetPreviewsGeneration];
 
-	for (NSString *resolution in _resolutions)
+	for (NSNumber *resolution in _resolutions)
 	{
-		NSString *spriteSheetFile = [[spriteSheetDir stringByAppendingPathComponent:[NSString stringWithFormat:@"resources-%@", resolution]]
-                                                     stringByAppendingPathComponent:spriteSheetName];
+        NSString *subPathWithRes = [subPath filepathWithResolutionTag:resolution];
+
+	    [_publishedSpriteSheetFiles addObject:[subPathWithRes stringByAppendingPathExtension:@"plist"]];
+
+		NSString *spriteSheetFile = [spriteSheetDir stringByAppendingPathComponent:spriteSheetName];
 
         NSFileManager *filemanager = [NSFileManager defaultManager];
-        [filemanager createDirectoryAtPath:[_projectSettings.tempSpriteSheetCacheDirectory stringByAppendingPathComponent:subPath]
+        [filemanager createDirectoryAtPath:[_projectSettings.tempSpriteSheetCacheDirectory stringByAppendingPathComponent:subPathWithRes]
                withIntermediateDirectories:YES
                                 attributes:nil
                                      error:nil];
         
-        NSString *intermediateFileLookupPath = [[_projectSettings.tempSpriteSheetCacheDirectory stringByAppendingPathComponent:subPath] stringByAppendingPathComponent:INTERMEDIATE_FILE_LOOKUP_NAME];
+        NSString *intermediateFileLookupPath = [[_projectSettings.tempSpriteSheetCacheDirectory stringByAppendingPathComponent:subPathWithRes]
+                stringByAppendingPathComponent:INTERMEDIATE_FILE_LOOKUP_NAME];
         [_renamedFilesLookup addIntermediateLookupPath:intermediateFileLookupPath];
 
-		if ([self spriteSheetExistsAndUpToDate:srcSpriteSheetDate spriteSheetFile:spriteSheetFile subPath:subPath])
+		if ([self spriteSheetExistsAndUpToDate:srcSpriteSheetDate spriteSheetFile:spriteSheetFile subPath:subPathWithRes])
 		{
             LocalLog(@"[SPRITESHEET] SKIPPING exists and up to date - file name: %@, subpath: %@, resolution: %@, file path: %@",
-                     [spriteSheetFile lastPathComponent], subPath, resolution, spriteSheetFile);
+                     [spriteSheetFile lastPathComponent], subPathWithRes, resolution, spriteSheetFile);
 			continue;
 		}
 
@@ -472,23 +471,25 @@
 - (PublishSpriteSheetOperation *)createSpriteSheetOperation:(NSString *)publishDirectory
                                                     subPath:(NSString *)subPath
                                          srcSpriteSheetDate:(NSDate *)srcSpriteSheetDate
-                                                 resolution:(NSString *)resolution
+                                                 resolution:(NSNumber *)resolution
                                             spriteSheetFile:(NSString *)spriteSheetFile
 {
     PublishSpriteSheetOperation *operation = [[PublishSpriteSheetOperation alloc] initWithProjectSettings:_projectSettings
                                                                                           packageSettings:_packageSettings
                                                                                                  warnings:_warnings
                                                                                            statusProgress:_publishingTaskStatusProgress];
+
+    NSString *spriteSheetCacheDir = [_projectSettings.tempSpriteSheetCacheDirectory stringByAppendingPathComponent:subPath];
+
     operation.publishDirectory = publishDirectory;
     operation.publishedPNGFiles = _publishedPNGFiles;
     operation.srcSpriteSheetDate = srcSpriteSheetDate;
     operation.resolution = resolution;
-    operation.srcDirs = @[
-            [[_projectSettings.tempSpriteSheetCacheDirectory stringByAppendingPathComponent:subPath] stringByAppendingPathComponent:[NSString stringWithFormat:@"resources-%@", resolution]],
-            [_projectSettings.tempSpriteSheetCacheDirectory stringByAppendingPathComponent:subPath]];
+    operation.srcDir = spriteSheetCacheDir;
     operation.spriteSheetFile = spriteSheetFile;
     operation.subPath = subPath;
     operation.osType = _osType;
+
     return operation;
 }
 
@@ -504,7 +505,7 @@
 - (void)prepareImagesForSpriteSheetPublishing:(NSString *)publishDirectory
                                       subPath:(NSString *)subPath
                                     outputDir:(NSString *)outputDir
-                                   resolution:(NSString *)resolution
+                                   resolution:(NSNumber *)resolution
                                    fileLookup:(id<PublishFileLookupProtocol>)fileLookup
 {
     NSFileManager *fileManager = [NSFileManager defaultManager];

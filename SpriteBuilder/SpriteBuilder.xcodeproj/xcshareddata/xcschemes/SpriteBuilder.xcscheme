@@ -51,6 +51,23 @@
                BlueprintName = "SpriteBuilder Tests"
                ReferencedContainer = "container:SpriteBuilder.xcodeproj">
             </BuildableReference>
+            <SkippedTests>
+               <Test
+                  Identifier = "CCAnimation_Tests">
+               </Test>
+               <Test
+                  Identifier = "CCBDictionaryReader_Tests/testNodeGraphFromDocumentDict_bmfont">
+               </Test>
+               <Test
+                  Identifier = "CCBDictionaryReader_Tests/testNodeGraphFromDocumentDict_button">
+               </Test>
+               <Test
+                  Identifier = "CCBReader_EffectsTest">
+               </Test>
+               <Test
+                  Identifier = "InspectoreController_Tests/testUpdateInspectorFromSelectionForCCLabelBMFont">
+               </Test>
+            </SkippedTests>
          </TestableReference>
          <TestableReference
             skipped = "NO">
@@ -82,7 +99,8 @@
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "YES"
       allowLocationSimulation = "YES">
-      <BuildableProductRunnable>
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7789ABBD133AA82000CEFCC7"
@@ -105,7 +123,8 @@
       useCustomWorkingDirectory = "NO"
       buildConfiguration = "Debug"
       debugDocumentVersioning = "YES">
-      <BuildableProductRunnable>
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7789ABBD133AA82000CEFCC7"

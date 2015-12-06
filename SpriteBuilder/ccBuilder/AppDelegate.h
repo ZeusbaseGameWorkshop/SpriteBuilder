@@ -124,7 +124,7 @@ enum {
 @class CCBPublisher;
 @class PreviewContainerViewController;
 @class InspectorController;
-@class SBOpenPathsController;
+@class OpenPathsController;
 @class LightingHandler;
 
 typedef void (^CompletionCallback) (BOOL success);
@@ -300,6 +300,10 @@ __attribute__((visibility("default")))
 
 @property (weak) IBOutlet MainWindow *window;
 
+// Content scale of the Mac window the editor is running in.
+@property (nonatomic, readonly) CGFloat windowContentScaleFactor;
+
+
 @property (weak, nonatomic,readonly) IBOutlet ResourceManagerOutlineView *outlineProject;
 
 @property (nonatomic, strong) IBOutlet InspectorController *inspectorController;
@@ -316,7 +320,7 @@ __attribute__((visibility("default")))
 @property (nonatomic,assign) BOOL defaultCanvasSize;
 @property (nonatomic,assign) BOOL canEditCustomClass;
 @property (nonatomic,assign) BOOL canEditStageSize;
-@property (nonatomic,assign) CGFloat derivedViewScaleFactor;
+@property (nonatomic,readonly) CGFloat derivedViewScaleFactor;
 
 @property (weak, nonatomic,readonly) CCNode* selectedNode;
 
@@ -346,7 +350,7 @@ __attribute__((visibility("default")))
 @property (weak, nonatomic,readonly) IBOutlet NSMenu *menuContextKeyframeNoselection;
 @property (weak, nonatomic,readonly) NSSegmentedControl *panelVisibilityControl;
 
-@property (nonatomic, strong) IBOutlet SBOpenPathsController *openPathsController;
+@property (nonatomic, strong) IBOutlet OpenPathsController *openPathsController;
 
 @property (nonatomic,strong) ProjectSettings* projectSettings;
 @property (nonatomic,strong,readonly) NSString * applicationTitle;
@@ -375,7 +379,8 @@ __attribute__((visibility("default")))
 - (void) gotoAutoplaySequence;
 - (void) switchToDocument:(CCBDocument*) document;
 - (void) closeLastDocument;
-- (void) openFile:(NSString*)filePath;
+
+- (void)openFile:(NSString *)filePath migrate:(BOOL)migrate;
 
 - (void)newFile:(NSString *)fileName type:(int)type resolutions:(NSMutableArray *)resolutions;
 

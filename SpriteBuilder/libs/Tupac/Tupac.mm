@@ -92,6 +92,7 @@ typedef struct _PVRTexHeader
         self.outputFormat = TupacOutputFormatCocos2D;
         self.maxTextureSize = 2048;
         self.padding = 1;
+        self.divisor = 1;
         self.trim = YES;
     }
     return self;
@@ -200,7 +201,24 @@ typedef struct _PVRTexHeader
     return NSMakeRect(x, y, wTrimmed, hTrimmed);
 }
 
-- (NSArray *)createTextureAtlas
+static NSString *
+TrimSuffix(NSString *filename, NSString *suffix)
+{
+    NSString *basename = [filename stringByDeletingPathExtension];
+    if([basename hasSuffix:suffix]) basename = [basename substringToIndex:basename.length - suffix.length];
+    NSString *ext = [filename pathExtension];
+    
+    return [basename stringByAppendingPathExtension:ext];
+}
+
+// Pad a size and round the result up to a multiple of the divisor
+static int
+PadSize(int size, int padding, int divisor)
+{
+    return (size + padding + divisor - 1)/divisor*divisor;
+}
+
+- (NSArray *)createTextureAtlasTrimSuffix:(NSString *)suffix
 {
     // Reset the error message
     if (errorMessage)
@@ -262,9 +280,9 @@ typedef struct _PVRTexHeader
         }
         
         NSMutableDictionary* imageInfo = [NSMutableDictionary dictionary];
-        [imageInfo setObject:[NSNumber numberWithInt:w] forKey:@"width"];
-        [imageInfo setObject:[NSNumber numberWithInt:h] forKey:@"height"];
-        [imageInfo setObject:[NSValue valueWithRect:trimRect] forKey:@"trimRect"];
+        imageInfo[@"width"] = @(w);
+        imageInfo[@"height"] = @(h);
+        imageInfo[@"trimRect"] = [NSValue valueWithRect:trimRect];
         
         // Store info info
         [imageInfos addObject:imageInfo];
@@ -285,15 +303,15 @@ typedef struct _PVRTexHeader
     int maxSideLen = 8;
     for (NSDictionary* imageInfo in imageInfos)
     {
-        NSRect trimRect = [[imageInfo objectForKey:@"trimRect"] rectValue];
+        NSRect trimRect = [imageInfo[@"trimRect"] rectValue];
         
-        int w = trimRect.size.width;
+        int w = (int) trimRect.size.width;
         if (w > maxSideLen) maxSideLen = w + self.padding * 2;
         
-        int h = trimRect.size.height;
+        int h = (int) trimRect.size.height;
         if (h > maxSideLen) maxSideLen = h + self.padding * 2;
     }
-    maxSideLen = upper_power_of_two(maxSideLen);
+    maxSideLen = (int) upper_power_of_two(maxSideLen);
     
     // Pack using max rects
     int outW = maxSideLen;
@@ -312,18 +330,18 @@ typedef struct _PVRTexHeader
     BOOL packingError = NO;
     while (!packingError && !allFitted)
     {
-        MaxRectsBinPack bin(outW, outH);
+        MaxRectsBinPack bin(outW - self.padding, outH - self.padding);
         
         std::vector<TPRectSize> inRects;
         
         int numImages = 0;
         for (NSDictionary* imageInfo in imageInfos)
         {
-            NSRect trimRect = [[imageInfo objectForKey:@"trimRect"] rectValue];
+            NSRect trimRect = [imageInfo[@"trimRect"] rectValue];
             
             inRects.push_back(TPRectSize());
-            inRects[numImages].width = trimRect.size.width + self.padding * 2;
-            inRects[numImages].height = trimRect.size.height + self.padding * 2;
+            inRects[numImages].width = PadSize(trimRect.size.width, self.padding, self.divisor);
+            inRects[numImages].height = PadSize(trimRect.size.height, self.padding, self.divisor);
             inRects[numImages].idx = numImages;
             
             numImages++;
@@ -377,8 +395,8 @@ typedef struct _PVRTexHeader
         int  x, y, w, h;
         
         // Get the image and info
-        CGImageRef srcImage = (CGImageRef)[[images objectAtIndex:outRects[index].idx] pointerValue];
-        NSDictionary* imageInfo = [imageInfos objectAtIndex:outRects[index].idx];
+        CGImageRef srcImage = (CGImageRef)[images[(NSUInteger) outRects[index].idx] pointerValue];
+        NSDictionary* imageInfo = imageInfos[(NSUInteger) outRects[index].idx];
         
         x = outRects[index].x;
         y = outRects[index].y;
@@ -388,19 +406,19 @@ typedef struct _PVRTexHeader
         x += self.padding;
         y += self.padding;
         
-        NSRect trimRect = [[imageInfo objectForKey:@"trimRect"] rectValue];
+        NSRect trimRect = [imageInfo[@"trimRect"] rectValue];
         if (rot)
         {
-            h = [[imageInfo objectForKey:@"width"] intValue];
-            w = [[imageInfo objectForKey:@"height"] intValue];
+            h = [imageInfo[@"width"] intValue];
+            w = [imageInfo[@"height"] intValue];
             
             x -= (w - trimRect.origin.y - trimRect.size.height);
             y -= trimRect.origin.x;
         }
         else
         {
-            w = [[imageInfo objectForKey:@"width"] intValue];
-            h = [[imageInfo objectForKey:@"height"] intValue];
+            w = [imageInfo[@"width"] intValue];
+            h = [imageInfo[@"height"] intValue];
             
             x -= trimRect.origin.x;
             y -= trimRect.origin.y;
@@ -471,6 +489,7 @@ typedef struct _PVRTexHeader
                                       dither:dither_
                                     compress:compress_
                                isSpriteSheet:YES
+                                isAutoScaled:NO
                               outputFilename:&textureFileName
                                        error:&error])
     {
@@ -495,17 +514,17 @@ typedef struct _PVRTexHeader
         NSMutableDictionary *frames     = [NSMutableDictionary dictionaryWithCapacity:self.filenames.count];
         NSMutableDictionary *metadata   = [NSMutableDictionary dictionaryWithCapacity:4];
         
-        [outDict setObject:frames   forKey:@"frames"];
-        [outDict setObject:metadata forKey:@"metadata"];
+        outDict[@"frames"] = frames;
+        outDict[@"metadata"] = metadata;
         
         int index = 0;
         while(index < outRects.size())
         {
             // Get info about the image
-            NSString* filename = [self.filenames objectAtIndex:outRects[index].idx];
-            NSString* exportFilename = [filename lastPathComponent];
+            NSString* filename = self.filenames[(NSUInteger) outRects[index].idx];
+            NSString* exportFilename = TrimSuffix([filename lastPathComponent], suffix);
             if (directoryPrefix_) exportFilename = [directoryPrefix_ stringByAppendingPathComponent:exportFilename];
-            NSDictionary* imageInfo = [imageInfos objectAtIndex:outRects[index].idx];
+            NSDictionary* imageInfo = imageInfos[(NSUInteger) outRects[index].idx];
             
             bool rot = false;
             int x, y, w, h, wSrc, hSrc, xOffset, yOffset;
@@ -513,9 +532,9 @@ typedef struct _PVRTexHeader
             y = outRects[index].y + self.padding;
             w = outRects[index].width - self.padding*2;
             h = outRects[index].height - self.padding*2;
-            wSrc = [[imageInfo objectForKey:@"width"] intValue];
-            hSrc = [[imageInfo objectForKey:@"height"] intValue];
-            NSRect trimRect = [[imageInfo objectForKey:@"trimRect"] rectValue];
+            wSrc = [imageInfo[@"width"] intValue];
+            hSrc = [imageInfo[@"height"] intValue];
+            NSRect trimRect = [imageInfo[@"trimRect"] rectValue];
             
             rot = outRects[index].rotated;
             
@@ -527,24 +546,21 @@ typedef struct _PVRTexHeader
                 h = hRot;
             }
             
-            xOffset = trimRect.origin.x + trimRect.size.width/2 - wSrc/2;
-            yOffset = -trimRect.origin.y - trimRect.size.height/2 + hSrc/2;
+            xOffset = (int) (trimRect.origin.x + trimRect.size.width/2 - wSrc/2);
+            yOffset = (int) (-trimRect.origin.y - trimRect.size.height/2 + hSrc/2);
             
             index++;
             
-            [frames setObject:[NSDictionary dictionaryWithObjectsAndKeys:
-                               NSStringFromRect(NSMakeRect(x, y, w, h)),    @"frame",
-                               NSStringFromPoint(NSMakePoint(xOffset, yOffset)),        @"offset",
-                               [NSNumber numberWithBool:rot],               @"rotated",
-                               NSStringFromRect(trimRect),                  @"sourceColorRect",
-                               NSStringFromSize(NSMakeSize(wSrc, hSrc)),    @"sourceSize",
-                               nil]
-                       forKey:exportFilename];
+            frames[exportFilename] = @{@"frame" : NSStringFromRect(NSMakeRect(x, y, w, h)),
+                    @"offset" : NSStringFromPoint(NSMakePoint(xOffset, yOffset)),
+                    @"rotated" : @(rot),
+                    @"sourceColorRect" : NSStringFromRect(trimRect),
+                    @"sourceSize" : NSStringFromSize(NSMakeSize(wSrc, hSrc))};
         }
         
-        [metadata setObject:textureFileName                                     forKey:@"textureFileName"];
-        [metadata setObject:[NSNumber numberWithInt:2]                      forKey:@"format"];
-        [metadata setObject:NSStringFromSize(NSMakeSize(outW, outH))        forKey:@"size"];
+        metadata[@"textureFileName"] = TrimSuffix(textureFileName, suffix);
+        metadata[@"format"] = @2;
+        metadata[@"size"] = NSStringFromSize(NSMakeSize(outW, outH));
 
         NSString *plistFilename = [self.outputName stringByAppendingPathExtension:@"plist"];
         [outDict writeToFile:plistFilename atomically:YES];
@@ -576,52 +592,33 @@ typedef struct _PVRTexHeader
     }
 }
 
-- (NSArray *) createTextureAtlasFromDirectoryPaths:(NSArray *)dirs
+- (NSArray *) createTextureAtlasFromDirectoryPath:(NSString *)dir withSuffix:(NSString *)suffix;
 {
     NSFileManager* fm = [NSFileManager defaultManager];
     
-    // Build a list of all file names from all directories
-    NSMutableSet* allFiles = [NSMutableSet set];
-    
-    for (NSString* dir in dirs)
-    {
-        NSArray* files = [fm contentsOfDirectoryAtPath:dir error:NULL];
-
-        if (cancelled_)
-        {
-            return nil;
-        }
-
-        for (NSString* file in files)
-        {
-				    NSString *lower = [[file pathExtension] lowercaseString];
-            if ([lower isEqualToString:@"png"] || [lower isEqualToString:@"psd"])
-            {
-                [allFiles addObject:[file lastPathComponent]];
-            }
-        }
-    }
-    
     // Add all the absolute file names to an array from the correct directories
     NSMutableArray* absoluteFilepaths = [NSMutableArray array];
-    for (NSString* file in allFiles)
+    
+    NSArray* files = [fm contentsOfDirectoryAtPath:dir error:NULL];
+
+    if (cancelled_)
     {
-        for (NSString* dir in dirs)
+        return nil;
+    }
+
+    for (NSString* file in files)
+    {
+        NSString *ext = [[file pathExtension] lowercaseString];
+        NSString *basename = [file stringByDeletingPathExtension];
+        if ([basename hasSuffix:suffix] && ([ext isEqualToString:@"png"] || [ext isEqualToString:@"psd"]))
         {
-            NSString* absFilepath = [dir stringByAppendingPathComponent:file];
-            
-            if ([fm fileExistsAtPath:absFilepath])
-            {
-                [absoluteFilepaths addObject:absFilepath];
-                //foundFile = YES;
-                break;
-            }
+            [absoluteFilepaths addObject:[dir stringByAppendingPathComponent:file]];
         }
     }
     
     // Generate the sprite sheet
     self.filenames = absoluteFilepaths;
-    return [self createTextureAtlas];
+    return [self createTextureAtlasTrimSuffix:suffix];
 }
 
 - (void)cancel

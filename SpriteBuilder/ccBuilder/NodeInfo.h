@@ -23,6 +23,7 @@
  */
 
 #import <Foundation/Foundation.h>
+#import <GLKit/GLKMath.h>
 
 @class PlugInNode;
 @class SequencerNodeProperty;
@@ -44,7 +45,7 @@ __attribute__((visibility("default")))
 @property (nonatomic,readonly) NSMutableDictionary* baseValues;
 @property (nonatomic,copy) NSString* displayName;
 @property (nonatomic,strong) NSMutableArray* customProperties;
-@property (nonatomic,assign) CGAffineTransform startTransform;
+@property (nonatomic,assign) GLKMatrix4 startMatrix;
 @property (nonatomic,assign) CGPoint startAnchorPoint;
 
 + (id) nodeInfoWithPlugIn:(PlugInNode*)pin;

@@ -33,12 +33,13 @@
 @synthesize baseValues;
 @synthesize displayName;
 @synthesize customProperties;
-@synthesize startTransform;
+@synthesize startMatrix;
 
 + (id) nodeInfoWithPlugIn:(PlugInNode*)pin
 {
     NodeInfo* info = [[NodeInfo alloc] init];
     info.plugIn = pin;
+
     return info;
 }
 

@@ -28,8 +28,8 @@
 #import "NodeInfo.h"
 #import "CCNode+NodeInfo.h"
 #import "PlugInNode.h"
-#import "CCBWriterInternal.h"
-#import "CCBReaderInternal.h"
+#import "CCBDictionaryWriter.h"
+#import "CCBDictionaryReader.h"
 #import "SequencerExpandBtnCell.h"
 #import "SequencerStructureCell.h"
 #import "SequencerCell.h"
@@ -47,7 +47,7 @@
 #import "NSArray+Query.h"
 #import "CCBPhysicsJoint.h"
 #import "PlugInManager.h"
-#import "SBPasteboardTypes.h"
+#import "PasteboardTypes.h"
 #import "EffectsManager.h"
 #import "InspectorController.h"
 #import "NotificationNames.h"
@@ -90,7 +90,7 @@ static SequencerHandler* sharedSequencerHandler;
 	[outlineHierarchy registerForDraggedTypes:@[PASTEBOARD_TYPE_NODE,
 			PASTEBOARD_TYPE_TEXTURE,
 			PASTEBOARD_TYPE_TEMPLATE,
-			PASTEBOARD_TYPE_CCB,
+            PASTEBOARD_TYPE_SB,
 			PASTEBOARD_TYPE_PLUGINNODE,
 			PASTEBOARD_TYPE_WAVE,
 			PASTEBOARD_TYPE_JOINTBODY,
@@ -563,7 +563,7 @@ static SequencerHandler* sharedSequencerHandler;
 	NSMutableArray *array = [NSMutableArray array];
 	for (CCNode *node in items)
 	{
-		NSMutableDictionary *clipDict = [CCBWriterInternal dictionaryFromCCObject:node];
+		NSMutableDictionary *clipDict = [CCBDictionaryWriter serializeNode:node];
         [clipDict setObject:@((long long) node) forKey:ORIGINAL_NODE_POINTER_KEY];
 
 		[array addObject:clipDict];
@@ -583,7 +583,7 @@ static SequencerHandler* sharedSequencerHandler;
         CCNode *originalNode = (__bridge CCNode*)nodePtr;
 
 		NSDictionary *node = @{
-				COPY_NODE_KEY : [CCBReaderInternal nodeGraphFromDictionary:dictionary parentSize:CGSizeZero],
+				COPY_NODE_KEY : [CCBDictionaryReader nodeGraphFromNodeGraphData:dictionary parentSize:CGSizeZero withParentGraph:nil],
 			ORIGINAL_NODE_KEY : originalNode
 		};
 
@@ -936,7 +936,7 @@ static SequencerHandler* sharedSequencerHandler;
 - (BOOL)acceptDropForCCBFiles:(id)item pasteboard:(NSPasteboard *)pasteboard
 {
 	BOOL addedObject = NO;;
-	NSArray* pbCCBs = [pasteboard propertyListsForType:PASTEBOARD_TYPE_CCB];
+	NSArray* pbCCBs = [pasteboard propertyListsForType:PASTEBOARD_TYPE_SB];
 	for (NSDictionary* dict in pbCCBs)
     {
         [appDelegate dropAddCCBFileNamed:dict[@"ccbFile"] at:ccp(0, 0) parent:item];
@@ -1525,6 +1525,11 @@ static SequencerHandler* sharedSequencerHandler;
         
         [self updatePropertiesToTimelinePositionForNode:child sequenceId:childSeqId localTime:localTime];
     }
+}
+
+- (void) setSequenceId:(int)seqId localTime:(float)time
+{
+    [self updatePropertiesToTimelinePositionForNode:[[CocosScene cocosScene] rootNode] sequenceId:seqId localTime:time];
 }
 
 - (void) updatePropertiesToTimelinePosition

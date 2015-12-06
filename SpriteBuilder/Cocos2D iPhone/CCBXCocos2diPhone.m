@@ -23,18 +23,18 @@
  */
 
 #import "CCBXCocos2diPhone.h"
-#import "CCBXCocos2diPhoneWriter.h"
+#import "CCBBinaryWriter.h"
 
 @implementation CCBXCocos2diPhone
 
 - (NSString*) extension
 {
-    return @"ccbi";
+    return @"sbi";
 }
 
 - (NSData *)exportDocument:(NSDictionary *)doc
 {
-    CCBXCocos2diPhoneWriter* writer = [[CCBXCocos2diPhoneWriter alloc] init];
+    CCBBinaryWriter * writer = [[CCBBinaryWriter alloc] init];
     writer.serializedProjectSettings = serializedProjectSettings;
     writer.delegate = self.delegate;
     [writer writeDocument:doc];

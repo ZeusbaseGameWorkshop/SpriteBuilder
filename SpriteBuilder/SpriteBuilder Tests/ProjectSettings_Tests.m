@@ -10,10 +10,9 @@
 #import <OCMock/OCMock.h>
 
 #import "ProjectSettings.h"
-#import "SBErrors.h"
+#import "Errors.h"
 #import "ProjectSettings+Packages.h"
 #import "NSString+Packages.h"
-#import "SBAssserts.h"
 #import "MiscConstants.h"
 #import "FileSystemTestCase.h"
 #import "ProjectSettings+Convenience.h"
@@ -39,15 +38,15 @@
     [super setUp];
 
     _projectSettings = [[ProjectSettings alloc] init];
-    _projectSettings.projectPath = @"/project/abc.ccbproj";
+    _projectSettings.projectPath = @"/project/abc.sbproj";
 }
 
 - (void)testAddResourcePath
 {
     NSError *error;
-    XCTAssertTrue([_projectSettings addResourcePath:@"/project/resourcepath1" error:&error]);
+    XCTAssertTrue([_projectSettings addPackageWithFullPath:@"/project/resourcepath1" error:&error]);
     XCTAssertNil(error);
-    XCTAssertEqual((int)_projectSettings.resourcePaths.count, 1);
+    XCTAssertEqual((int)_projectSettings.packages.count, 1);
 }
 
 - (void)testAddResourcePathTwice
@@ -55,76 +54,76 @@
     NSString *resourcePath = @"/project/resourcepath1";
 
     NSError *error;
-    XCTAssertTrue([_projectSettings addResourcePath:resourcePath error:&error]);
+    XCTAssertTrue([_projectSettings addPackageWithFullPath:resourcePath error:&error]);
     XCTAssertNil(error);
 
     NSError *error2;
-    XCTAssertFalse([_projectSettings addResourcePath:resourcePath error:&error2]);
+    XCTAssertFalse([_projectSettings addPackageWithFullPath:resourcePath error:&error2]);
     XCTAssertNotNil(error2);
-    XCTAssertEqual(error2.code, SBDuplicateResourcePathError);
+    XCTAssertEqual(error2.code, SBDuplicatePackageError);
 
-    XCTAssertEqual((int)_projectSettings.resourcePaths.count, 1);
+    XCTAssertEqual((int)_projectSettings.packages.count, 1);
 }
 
 - (void)testIsResourcePathAlreadyInProject
 {
     NSString *resourcePath = @"/project/resourcepath1";
 
-    [_projectSettings addResourcePath:resourcePath error:nil];
+    [_projectSettings addPackageWithFullPath:resourcePath error:nil];
 
-    XCTAssertTrue([_projectSettings isResourcePathInProject:resourcePath]);
+    XCTAssertTrue([_projectSettings isPackageWithFullPathInProject:resourcePath]);
 
-    XCTAssertFalse([_projectSettings isResourcePathInProject:@"/foo/notinproject"]);
+    XCTAssertFalse([_projectSettings isPackageWithFullPathInProject:@"/foo/notinproject"]);
 }
 
 - (void)testRemoveResourcePath
 {
-    _projectSettings.projectPath = @"/project/ccbuttonwooga.ccbproj";
-    [_projectSettings.resourcePaths addObject:@{@"path" : @"test"}];
+    _projectSettings.projectPath = @"/project/ccbuttonwooga.sbproj";
+    [_projectSettings.packages addObject:@{@"path" : @"test"}];
 
     NSError *error;
-    XCTAssertTrue([_projectSettings removeResourcePath:@"/project/test" error:&error]);
-    XCTAssertEqual((int)_projectSettings.resourcePaths.count, 0);
+    XCTAssertTrue([_projectSettings removePackageWithFullPath:@"/project/test" error:&error]);
+    XCTAssertEqual((int)_projectSettings.packages.count, 0);
     XCTAssertNil(error);
 }
 
 - (void)testRemoveNonExistingResourcePath
 {
-    _projectSettings.projectPath = @"/project/ccbuttonwooga.ccbproj";
+    _projectSettings.projectPath = @"/project/ccbuttonwooga.sbproj";
 
     NSError *error;
-    XCTAssertFalse([_projectSettings removeResourcePath:@"/project/test" error:&error]);
+    XCTAssertFalse([_projectSettings removePackageWithFullPath:@"/project/test" error:&error]);
     XCTAssertNotNil(error);
-    XCTAssertEqual(error.code, SBResourcePathNotInProjectError);
+    XCTAssertEqual(error.code, SBPackageNotInProjectError);
 }
 
 - (void)testMoveResourcePath
 {
-    _projectSettings.projectPath = @"/project/ccbuttonwooga.ccbproj";
+    _projectSettings.projectPath = @"/project/ccbuttonwooga.sbproj";
 
     NSString *pathOld = @"/somewhere/path_old";
-    [_projectSettings addResourcePath:pathOld error:nil];
+    [_projectSettings addPackageWithFullPath:pathOld error:nil];
 
     NSString *pathNew = @"/somewhere/path_new";
     NSError *error;
-    XCTAssertTrue([_projectSettings moveResourcePathFrom:pathOld toPath:pathNew error:&error]);
+    XCTAssertTrue([_projectSettings movePackageWithFullPathFrom:pathOld toFullPath:pathNew error:&error]);
     XCTAssertNil(error);
 
-    XCTAssertFalse([_projectSettings isResourcePathInProject:pathOld]);
-    XCTAssertTrue([_projectSettings isResourcePathInProject:pathNew]);
+    XCTAssertFalse([_projectSettings isPackageWithFullPathInProject:pathOld]);
+    XCTAssertTrue([_projectSettings isPackageWithFullPathInProject:pathNew]);
 }
 
 - (void)testMoveResourcePathFailingBecauseThereIsAlreadyOneWithTheSameName
 {
     NSString *path1 = @"/somewhere/path1";
-    [_projectSettings addResourcePath:path1 error:nil];
+    [_projectSettings addPackageWithFullPath:path1 error:nil];
     NSString *path2 = @"/somewhere/path2";
-    [_projectSettings addResourcePath:path2 error:nil];
+    [_projectSettings addPackageWithFullPath:path2 error:nil];
 
     NSError *error;
-    XCTAssertFalse([_projectSettings moveResourcePathFrom:path1 toPath:path2 error:&error]);
+    XCTAssertFalse([_projectSettings movePackageWithFullPathFrom:path1 toFullPath:path2 error:&error]);
     XCTAssertNotNil(error);
-    XCTAssertEqual(error.code, SBDuplicateResourcePathError);
+    XCTAssertEqual(error.code, SBDuplicatePackageError);
 }
 
 - (void)testFullPathForPackageName
@@ -135,7 +134,7 @@
     NSString *fullPathForPackageName = [_projectSettings fullPathForPackageName:packageName];
     NSString *supposedFullPath = [fullPackagesPath stringByAppendingPathComponent:[packageName stringByAppendingPackageSuffix]];
 
-    SBAssertStringsEqual(fullPathForPackageName,supposedFullPath);
+    XCTAssertEqualObjects(fullPathForPackageName,supposedFullPath);
 }
 
 - (void)testIsPathWithinPackagesFolder
@@ -149,102 +148,89 @@
 {
     NSString *fullPackagesPath = [_projectSettings.projectPathDir stringByAppendingPathComponent:PACKAGES_FOLDER_NAME];
 
-    SBAssertStringsEqual(fullPackagesPath, _projectSettings.packagesFolderPath);
+    XCTAssertEqualObjects(fullPackagesPath, _projectSettings.packagesFolderPath);
 }
 
 - (void)testInitWithDictionary
 {
    NSDictionary *projectDict =
    @{
-      @"deviceOrientationPortrait":@(NO),
-      @"publishDirectory":@"Source/Resources/Published-iOS",
       @"resourceAutoScaleFactor":@(0),
       @"resourceProperties":@{
          @"":@{
             @"previewFolderHidden":@(YES)
          },
-         @"ccbResources/ccbSliderBgHighlighted.png":@{
-            RESOURCE_PROPERTY_IMAGE_TABLET_SCALE:@(1),
-            RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2)
+         @"Resources/SliderBgHighlighted.png":@{
+                   RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2),
+                   RESOURCE_PROPERTY_IMAGE_USEUISCALE:@(YES)
          },
-         @"ccbResources/ccbButtonHighlighted.png":@{
-            RESOURCE_PROPERTY_IMAGE_TABLET_SCALE:@(1),
-            RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2)
+         @"Resources/ButtonHighlighted.png":@{
+                   RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2),
+                   RESOURCE_PROPERTY_IMAGE_USEUISCALE:@(YES)
          },
          @"Sprites" : @{},
-         @"ccbResources/ccbSliderBgNormal.png":@{
-            RESOURCE_PROPERTY_IMAGE_TABLET_SCALE:@(1),
-            RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2)
+         @"Resources/SliderBgNormal.png":@{
+                   RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2),
+                   RESOURCE_PROPERTY_IMAGE_USEUISCALE:@(YES)
          },
-         @"ccbResources/ccbTextField.png":@{
-            RESOURCE_PROPERTY_IMAGE_TABLET_SCALE:@(1),
-            RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2)
+         @"Resources/TextField.png":@{
+                   RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2),
+                   RESOURCE_PROPERTY_IMAGE_USEUISCALE:@(YES)
          },
-         @"ccbResources/ccbParticleFire.png":@{
-            RESOURCE_PROPERTY_IMAGE_TABLET_SCALE:@(1),
-            RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(1)
+         @"Resources/ParticleFire.png":@{
+                   RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2),
+                   RESOURCE_PROPERTY_IMAGE_USEUISCALE:@(YES)
          },
          @"ccbResources":@{
             @"previewFolderHidden":@(YES)
          },
-         @"ccbResources/ccbParticleMagic.png":@{
-            RESOURCE_PROPERTY_IMAGE_TABLET_SCALE:@(1),
-            RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(1)
+         @"Resources/ParticleMagic.png":@{
+                   RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2),
+                   RESOURCE_PROPERTY_IMAGE_USEUISCALE:@(YES)
          },
-         @"ccbResources/ccbButtonNormal.png":@{
-            RESOURCE_PROPERTY_IMAGE_TABLET_SCALE:@(1),
-            RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2)
+         @"Resources/ButtonNormal.png":@{
+                   RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2),
+                   RESOURCE_PROPERTY_IMAGE_USEUISCALE:@(YES)
          },
-         @"ccbResources/ccbParticleStars.png":@{
-            RESOURCE_PROPERTY_IMAGE_TABLET_SCALE:@(1),
-            RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(1)
+         @"Resources/ParticleStars.png":@{
+                   RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2),
+                   RESOURCE_PROPERTY_IMAGE_USEUISCALE:@(YES)
          },
-         @"ccbResources/ccbSliderHandle.png":@{
-            RESOURCE_PROPERTY_IMAGE_TABLET_SCALE:@(1),
-            RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2)
+         @"Resources/SliderHandle.png":@{
+                   RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2),
+                   RESOURCE_PROPERTY_IMAGE_USEUISCALE:@(YES)
          },
-         @"ccbResources/ccbParticleSmoke.png":@{
-            RESOURCE_PROPERTY_IMAGE_TABLET_SCALE:@(1),
-            RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(1)
+         @"Resources/ParticleSmoke.png":@{
+                   RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2),
+                   RESOURCE_PROPERTY_IMAGE_USEUISCALE:@(YES)
          },
-         @"ccbResources/ccbParticleSnow.png":@{
-            RESOURCE_PROPERTY_IMAGE_TABLET_SCALE:@(1),
-            RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(1)
+         @"Resources/ParticleSnow.png":@{
+                   RESOURCE_PROPERTY_IMAGE_SCALE_FROM:@(2),
+                   RESOURCE_PROPERTY_IMAGE_USEUISCALE:@(YES)
          }
       },
-      @"publishDirectoryAndroid":@"Source/Resources/Published-Android",
-      @"defaultOrientation":@(0),
-      @"publishResolution_android_tablet":@(YES),
       @"publishEnabledAndroid":@(YES),
-      @"publishResolution_ios_phonehd":@(YES),
-      @"publishResolution_ios_tablet":@(YES),
-      @"publishResolution_android_phone":@(YES),
+      @"publishEnablediPhone":@(YES),
+      @"publishEnvironment":@(0),
+      @"publishToZipFile":@(NO),
+      PROJECTSETTINGS_KEY_PUBLISHDIR_ANDROID : @"Source/Resources/Published-Android",
+      PROJECTSETTINGS_KEY_PUBLISHDIR_IOS : @"Source/Resources/Published-iOS",
+      @"defaultOrientation":@(0),
       @"fileType":@"CocosBuilderProject",
-      @"resourcePaths":@[
+      PROJECTSETTINGS_KEY_PACKAGES:@[
          @{
             @"path":@"packages/SpriteBuilder Resources.sbpack"
          }
       ],
-      @"publishAudioQuality_android":@(4),
+      @"deviceOrientationPortrait":@(NO),
       @"deviceOrientationLandscapeLeft":@(YES),
-      @"publishResolution_android_tablethd":@(YES),
-      @"publishAudioQuality_ios":@(4),
-      @"publishEnvironment":@(0),
-      @"publishEnablediPhone":@(YES),
-      @"publishToZipFile":@(NO),
-      @"exporter":@"ccbi",
+      @"exporter":@"sbi",
       @"versionStr":@"Version: 1.x\n-n GitHub: \nfcec170fc2\n",
-      @"publishResolution_ios_phone":@(YES),
-      @"publishResolution_ios_tablethd":@(YES),
       @"deviceOrientationUpsideDown":@(NO),
-      @"publishResolution_android_phonehd":@(YES),
       @"deviceOrientationLandscapeRight":@(YES),
-      @"onlyPublishCCBs":@(NO),
       @"deviceScaling":@(0),
-      @"excludedFromPackageMigration":@(YES),
       @"designTarget":@(0),
-      @"cocos@(2)dUpdateIgnoredVersions":@[],
-      @"engine":@(0)
+      @"cocos2ddUpdateIgnoredVersions":@[],
    };
 
     ProjectSettings *project = [[ProjectSettings alloc] initWithSerialization:projectDict];
@@ -255,43 +241,29 @@
     XCTAssertTrue(project.deviceOrientationLandscapeRight);
 
     // This a convention, if it's read as 0 has to become 4
-    XCTAssertEqual(project.resourceAutoScaleFactor, 4);
-    SBAssertStringsEqual(project.publishDirectory, @"Source/Resources/Published-iOS");
+    XCTAssertEqualObjects(project.publishDirectoryIOS, @"Source/Resources/Published-iOS");
 
-    SBAssertStringsEqual(project.publishDirectoryAndroid, @"Source/Resources/Published-Android");
+    XCTAssertEqualObjects(project.publishDirectoryAndroid, @"Source/Resources/Published-Android");
     XCTAssertEqual(project.defaultOrientation, 0);
 
     XCTAssertTrue(project.publishEnabledAndroid);
-    XCTAssertTrue(project.publishResolution_android_phone);
-    XCTAssertTrue(project.publishResolution_android_phonehd);
-    XCTAssertTrue(project.publishResolution_android_tablet);
-    XCTAssertTrue(project.publishResolution_android_tablethd);
-
     XCTAssertTrue(project.publishEnabledIOS);
-    XCTAssertTrue(project.publishResolution_ios_phone);
-    XCTAssertTrue(project.publishResolution_ios_phonehd);
-    XCTAssertTrue(project.publishResolution_ios_tablet);
-    XCTAssertTrue(project.publishResolution_ios_tablethd);
 
     [self assertResourcePaths:@[@"packages/SpriteBuilder Resources.sbpack"] inProject:project];
 
-    XCTAssertEqual(project.publishAudioQuality_android, 4);
-    XCTAssertEqual(project.publishAudioQuality_ios, 4);
-
-    XCTAssertFalse(project.onlyPublishCCBs);
     XCTAssertEqual(project.deviceScaling, 0);
     XCTAssertEqual(project.designTarget, 0);
 
-    XCTAssertEqual(project.engine, CCBTargetEngineCocos2d);
-    SBAssertStringsEqual(project.exporter, @"ccbi");
+    XCTAssertEqualObjects(project.exporter, @"sbi");
 
     XCTAssertFalse(project.publishToZipFile);
     XCTAssertEqual(project.publishEnvironment, kCCBPublishEnvironmentDevelop);
 
-    XCTAssertTrue(project.excludedFromPackageMigration);
-
-    NSNumber *scaleFrom = [project propertyForRelPath:@"ccbResources/ccbSliderBgNormal.png" andKey:RESOURCE_PROPERTY_IMAGE_SCALE_FROM];
+    NSNumber *scaleFrom = [project propertyForRelPath:@"Resources/SliderBgNormal.png" andKey:RESOURCE_PROPERTY_IMAGE_SCALE_FROM];
     XCTAssertTrue([scaleFrom isEqualToNumber:@(2)]);
+
+    NSNumber *useUIScale = [project propertyForRelPath:@"Resources/SliderBgNormal.png" andKey:RESOURCE_PROPERTY_IMAGE_USEUISCALE];
+    XCTAssertTrue([useUIScale boolValue]);
 }
 
 - (void)testWrongFileType
@@ -314,16 +286,13 @@
 
     ProjectSettings *project = [[ProjectSettings alloc] initWithSerialization:projectDict];
     XCTAssertNotNil(project);
-    XCTAssertEqual(project.publishAudioQuality_android, DEFAULT_AUDIO_QUALITY);
-    XCTAssertEqual(project.publishAudioQuality_ios, DEFAULT_AUDIO_QUALITY);
-    SBAssertStringsEqual(project.publishDirectory, @"");
-    SBAssertStringsEqual(project.publishDirectoryAndroid, @"");
-    XCTAssertFalse(project.excludedFromPackageMigration);
+    XCTAssertEqualObjects(project.publishDirectoryIOS, @"");
+    XCTAssertEqualObjects(project.publishDirectoryAndroid, @"");
 }
 
 - (void)testStandardInitializerAndPersistency
 {
-    NSString *fullPath = [self fullPathForFile:@"project.ccbproj"];;
+    NSString *fullPath = [self fullPathForFile:@"project.sbproj"];;
     ProjectSettings *projectSettings = [[ProjectSettings alloc] init];
     projectSettings.projectPath = fullPath;
 
@@ -335,52 +304,35 @@
     NSMutableDictionary *projectDict = [NSMutableDictionary dictionaryWithContentsOfFile:fullPath];
     projectSettings = [[ProjectSettings alloc] initWithSerialization:projectDict];
 
-    XCTAssertNotNil(projectSettings.resourcePaths);
-    XCTAssertEqual(projectSettings.resourcePaths.count, 0);
-    XCTAssertEqual(projectSettings.engine, CCBTargetEngineCocos2d);
-    SBAssertStringsEqual(projectSettings.publishDirectory, @"Published-iOS");
-    SBAssertStringsEqual(projectSettings.publishDirectoryAndroid, @"Published-Android");
+    XCTAssertNotNil(projectSettings.packages);
+    XCTAssertEqual(projectSettings.packages.count, 0);
+    XCTAssertEqualObjects(projectSettings.publishDirectoryIOS, @"Published-iOS");
+    XCTAssertEqualObjects(projectSettings.publishDirectoryAndroid, @"Published-Android");
 
-    XCTAssertFalse(projectSettings.onlyPublishCCBs);
     XCTAssertFalse(projectSettings.publishToZipFile);
 
     XCTAssertTrue(projectSettings.deviceOrientationLandscapeLeft);
     XCTAssertTrue(projectSettings.deviceOrientationLandscapeRight);
 
-    XCTAssertEqual(projectSettings.resourceAutoScaleFactor, 4);
     XCTAssertTrue(projectSettings.publishEnabledIOS);
     XCTAssertTrue(projectSettings.publishEnabledAndroid);
 
-    XCTAssertTrue(projectSettings.publishResolution_ios_phone);
-    XCTAssertTrue(projectSettings.publishResolution_ios_phonehd);
-    XCTAssertTrue(projectSettings.publishResolution_ios_tablet);
-    XCTAssertTrue(projectSettings.publishResolution_ios_tablethd);
-
-    XCTAssertTrue(projectSettings.publishResolution_android_phone);
-    XCTAssertTrue(projectSettings.publishResolution_android_phonehd);
-    XCTAssertTrue(projectSettings.publishResolution_android_tablet);
-    XCTAssertTrue(projectSettings.publishResolution_android_tablethd);
-
     XCTAssertEqual(projectSettings.publishEnvironment, kCCBPublishEnvironmentDevelop);
-    XCTAssertEqual(projectSettings.publishAudioQuality_ios, 4);
-    XCTAssertEqual(projectSettings.publishAudioQuality_android, 4);
 
     XCTAssertEqual(projectSettings.tabletPositionScaleFactor, 2.0f);
-
-    XCTAssertFalse(projectSettings.excludedFromPackageMigration);
 }
 
 - (void)testResourcePathsAndPersistency
 {
-    NSString *fullPath = [self fullPathForFile:@"project.ccbproj"];;
+    NSString *fullPath = [self fullPathForFile:@"project.sbproj"];;
     ProjectSettings *projectSettings = [[ProjectSettings alloc] init];
     projectSettings.projectPath = fullPath;
 
     NSString *resPath1 = [self fullPathForFile:@"1234567/890"];
     NSString *resPath2 = [self fullPathForFile:@"foo/baa/yeehaaa"];
 
-    [projectSettings addResourcePath:resPath1 error:nil];
-    [projectSettings addResourcePath:resPath2 error:nil];
+    [projectSettings addPackageWithFullPath:resPath1 error:nil];
+    [projectSettings addPackageWithFullPath:resPath2 error:nil];
 
     XCTAssertTrue([projectSettings store], @"Failed to persist project at path \"%@\"", projectSettings.projectPath);
 
@@ -394,7 +346,7 @@
 
 - (void)testResourcePropertiesAndPersistency
 {
-    NSString *fullPath = [self fullPathForFile:@"project.ccbproj"];;
+    NSString *fullPath = [self fullPathForFile:@"project.sbproj"];;
     ProjectSettings *projectSettings = [[ProjectSettings alloc] init];
     projectSettings.projectPath = fullPath;
 
@@ -416,25 +368,23 @@
 // be migrated with more effort to fix this change later on
 - (void)testEnums
 {
-    XCTAssertEqual(kCCBPublishEnvironmentDevelop, 0, @"Enum value kCCBPublishEnvironmentDevelop  must not change");
-    XCTAssertEqual(kCCBPublishEnvironmentRelease, 1, @"Enum value kCCBPublishEnvironmentRelease  must not change");
+    XCTAssertEqual(kCCBPublishEnvironmentDevelop, 0, @"Enum value kSBPublishEnvironmentDevelop  must not change");
+    XCTAssertEqual(kCCBPublishEnvironmentRelease, 1, @"Enum value kSBPublishEnvironmentRelease  must not change");
 
-    XCTAssertEqual(CCBTargetEngineCocos2d, 0, @"Enum value CCBTargetEngineCocos2d  must not change");
+    XCTAssertEqual(kSBOrientationLandscape, 0, @"Enum value kSBOrientationLandscape  must not change");
+    XCTAssertEqual(kSBOrientationPortrait, 1, @"Enum value kSBOrientationPortrait  must not change");
 
-    XCTAssertEqual(kCCBOrientationLandscape, 0, @"Enum value kCCBOrientationLandscape  must not change");
-    XCTAssertEqual(kCCBOrientationPortrait, 1, @"Enum value kCCBOrientationPortrait  must not change");
-
-    XCTAssertEqual(kCCBDesignTargetFlexible, 0, @"Enum value kCCBDesignTargetFlexible  must not change");
-    XCTAssertEqual(kCCBDesignTargetFixed, 1, @"Enum value kCCBDesignTargetFixed  must not change");
+    XCTAssertEqual(kSBDesignTargetFlexible, 0, @"Enum value kSBDesignTargetFlexible  must not change");
+    XCTAssertEqual(kSBDesignTargetFixed, 1, @"Enum value kSBDesignTargetFixed  must not change");
 }
 
 - (void)testRelativePathFromAbsolutePath
 {
-    [_projectSettings addResourcePath:[self fullPathForFile:@"Packages/foo.sbpack"] error:nil];
-    [_projectSettings addResourcePath:[self fullPathForFile:@"Packages/baa.sbpack"] error:nil];
+    [_projectSettings addPackageWithFullPath:[self fullPathForFile:@"Packages/foo.sbpack"] error:nil];
+    [_projectSettings addPackageWithFullPath:[self fullPathForFile:@"Packages/baa.sbpack"] error:nil];
 
     NSString *fullPath = [self fullPathForFile:@"Packages/foo.sbpack/sprites/fighter.png"];
-    SBAssertStringsEqual([_projectSettings findRelativePathInPackagesForAbsolutePath:fullPath], @"sprites/fighter.png");
+    XCTAssertEqualObjects([_projectSettings findRelativePathInPackagesForAbsolutePath:fullPath], @"sprites/fighter.png");
 
     NSString *fullPath2 = [self fullPathForFile:@"Packages/level1.sbpack/sprites/fighter.png"];
     XCTAssertNil([_projectSettings findRelativePathInPackagesForAbsolutePath:fullPath2]);
@@ -450,15 +400,6 @@
     XCTAssertEqual(quality2, 7);
 }
 
-- (void)testConvenienceMethodForAudioQuality
-{
-    _projectSettings.publishAudioQuality_android = 8;
-    _projectSettings.publishAudioQuality_ios = 6;
-
-    XCTAssertEqual([_projectSettings audioQualityForOsType:kCCBPublisherOSTypeAndroid], 8);
-    XCTAssertEqual([_projectSettings audioQualityForOsType:kCCBPublisherOSTypeIOS], 6);
-}
-
 - (void)testMarkAsDirty
 {
     RMResource *res1 = [[RMResource alloc] initWithFilePath:[self fullPathForFile:@"project/Packages/package1.sbpack/foo.png"]];
@@ -470,9 +411,8 @@
             [self fullPathForFile:@"project/Packages/package1.sbpack"],
     ]];
 
-    [_projectSettings addResourcePath:@"project/Packages/package1.sbpack" error:nil];
+    [_projectSettings addPackageWithFullPath:@"project/Packages/package1.sbpack" error:nil];
     [_projectSettings clearAllDirtyMarkers];
-
 
     // Test clear all dirty markers
     [_projectSettings markAsDirtyResource:res1];
@@ -507,6 +447,7 @@
 
     [_projectSettings setProperty:@(1) forResource:res1 andKey:RESOURCE_PROPERTY_IOS_IMAGE_FORMAT];
     [_projectSettings setProperty:@(1) forResource:res1 andKey:RESOURCE_PROPERTY_IMAGE_SCALE_FROM];
+    [_projectSettings setProperty:@(YES) forResource:res1 andKey:RESOURCE_PROPERTY_IMAGE_USEUISCALE];
 
     [_projectSettings clearAllDirtyMarkers];
 
@@ -514,6 +455,7 @@
 
     [_projectSettings setProperty:@(1) forResource:res1 andKey:RESOURCE_PROPERTY_IOS_IMAGE_FORMAT];
     [_projectSettings setProperty:@(1) forResource:res1 andKey:RESOURCE_PROPERTY_IMAGE_SCALE_FROM];
+    [_projectSettings setProperty:@(YES) forResource:res1 andKey:RESOURCE_PROPERTY_IMAGE_USEUISCALE];
 
     XCTAssertFalse([_projectSettings isDirtyResource:res1]);
 }
@@ -525,8 +467,8 @@
     NSString *REL_IMAGE_IN_SPRITESHEET_PATH = @"project/Packages/package1.sbpack/spritesheet/image.png";
     NSString *REL_IMAGE_NOT_IN_SPRITESHEET_PATH = @"project/Packages/package1.sbpack/image.png";
 
-    _projectSettings.projectPath = [self fullPathForFile:@"project/abc.ccbproj"];
-    [_projectSettings addResourcePath:[self fullPathForFile:REL_PACKAGE_PATH] error:nil];
+    _projectSettings.projectPath = [self fullPathForFile:@"project/abc.sbproj"];
+    [_projectSettings addPackageWithFullPath:[self fullPathForFile:REL_PACKAGE_PATH] error:nil];
 
     ResourceManager *resourceManager = [ResourceManager sharedManager];
     [resourceManager setActiveDirectoriesWithFullReset:@[[self fullPathForFile:REL_PACKAGE_PATH]]];
@@ -608,7 +550,7 @@
             [self fullPathForFile:@"project/Packages/package1.sbpack"],
     ]];
 
-    [_projectSettings addResourcePath:@"project/Packages/package1.sbpack" error:nil];
+    [_projectSettings addPackageWithFullPath:@"project/Packages/package1.sbpack" error:nil];
     [_projectSettings clearAllDirtyMarkers];
 
     [_projectSettings markAsDirtyResource:res1];
@@ -627,13 +569,46 @@
     XCTAssertTrue([_projectSettings isDirtyResource:res3]);
 }
 
+- (void)testInitWithFilename
+{
+    [self createProjectSettingsFileWithName:@"foo.spritebuilder/foo.sbproj"];
+
+    [self assertFileExists:@"foo.spritebuilder/foo.sbproj"];
+
+    ProjectSettings *projectSettings = [[ProjectSettings alloc] initWithFilepath:[self fullPathForFile:@"foo.spritebuilder/foo.sbproj"]];
+
+    XCTAssertEqualObjects(projectSettings.projectName, @"foo");
+    XCTAssertNotNil(projectSettings);
+    XCTAssertEqualObjects(projectSettings.projectPath, [self fullPathForFile:@"foo.spritebuilder/foo.sbproj"]);
+}
+
+- (void)testInitWithFilenameFailing_fileDoesNotExist
+{
+    ProjectSettings *projectSettings = [[ProjectSettings alloc] initWithFilepath:[self fullPathForFile:@"foo.spritebuilder/doesnotexist.sbproj"]];
+
+    XCTAssertNil(projectSettings);
+}
+
+- (void)testInitWithFilenameFailing_malformedPropertyList
+{
+    NSDictionary *somedict = @{
+        @"asdasd" : @"hahahahahha"
+    };
+
+    [somedict writeToFile:[self fullPathForFile:[self fullPathForFile:@"foo.spritebuilder/doesnotexist.sbproj"]] atomically:YES];
+
+    ProjectSettings *projectSettings = [[ProjectSettings alloc] initWithFilepath:[self fullPathForFile:@"foo.spritebuilder/doesnotexist.sbproj"]];
+
+    XCTAssertNil(projectSettings);
+};
+
 #pragma mark - test helper
 
 - (void)assertResourcePaths:(NSArray *)resourcePaths inProject:(ProjectSettings *)project
 {
     for (NSString *resourcePath in resourcePaths)
     {
-        XCTAssertTrue([project isResourcePathInProject:resourcePath], @"Resource path \"%@\"is not in project settings. Present in settings: %@", resourcePath, project.resourcePaths);
+        XCTAssertTrue([project isPackageWithFullPathInProject:resourcePath], @"Resource path \"%@\"is not in project settings. Present in settings: %@", resourcePath, project.packages);
     }
 }
 

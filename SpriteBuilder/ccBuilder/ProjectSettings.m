@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#import "MigrationLogger.h"
 
 #import "ProjectSettings.h"
 #import "NSString+RelativePath.h"
@@ -31,7 +32,7 @@
 #import "AppDelegate.h"
 #import "ResourceManagerOutlineHandler.h"
 #import "CCBWarnings.h"
-#import "SBErrors.h"
+#import "Errors.h"
 #import "ResourceTypes.h"
 #import "NSError+SBErrors.h"
 #import "MiscConstants.h"
@@ -39,17 +40,45 @@
 #import "RMDirectory.h"
 #import "ResourcePropertyKeys.h"
 
-#import <ApplicationServices/ApplicationServices.h>
+
+NSString *const PROJECTSETTINGS_KEY_FILEVERSION = @"fileVersion";
+NSString *const PROJECTSETTINGS_KEY_RESOURCEPROPERTIES = @"resourceProperties";
+NSString *const PROJECTSETTINGS_KEY_PACKAGES = @"packages";
+NSString *const PROJECTSETTINGS_KEY_PUBLISHDIR_IOS = @"publishDirectoryIOS";
+NSString *const PROJECTSETTINGS_KEY_PUBLISHDIR_ANDROID = @"publishDirectoryAndroid";
+NSString *const PROJECTSETTINGS_KEY_DEPRECATED_RESOURCESPATHS = @"resourcePaths";
+NSString *const PROJECTSETTINGS_KEY_DEPRECATED_ONLYPUBLISHCCBS = @"onlyPublishCCBs";
+NSString *const PROJECTSETTINGS_KEY_DEPRECATED_ENGINE = @"engine";
+NSString *const PROJECTSETTINGS_KEY_DEPRECATED_PUBLISHDIR_IOS = @"publishDirectory";
+NSString *const PROJECTSETTINGS_KEY_DEPRECATED_EXCLUDEFROMPACKAGEMIGRATION = @"excludedFromPackageMigration";
 
 @interface ProjectSettings()
 
 @property (nonatomic, strong) NSMutableDictionary* resourceProperties;
-@property (nonatomic, readwrite) CCBTargetEngine engine;
 @property (nonatomic) BOOL storing;
 
 @end
 
+
 @implementation ProjectSettings
+
+- (instancetype)initWithFilepath:(NSString *)filepath
+{
+    NSMutableDictionary *projectDict = [NSMutableDictionary dictionaryWithContentsOfFile:filepath];
+    if (!projectDict)
+    {
+        return nil;
+    }
+
+    self = [self initWithSerialization:projectDict];
+
+    if (self)
+    {
+        self.projectPath = filepath;
+    }
+
+    return self;
+}
 
 - (id) init
 {
@@ -59,36 +88,22 @@
         return NULL;
     }
 
-    self.engine = CCBTargetEngineCocos2d;
-
-    self.resourcePaths = [[NSMutableArray alloc] init];
-    self.publishDirectory = @"Published-iOS";
+    self.packages = [[NSMutableArray alloc] init];
+    self.publishDirectoryIOS = @"Published-iOS";
     self.publishDirectoryAndroid = @"Published-Android";
 
-    self.onlyPublishCCBs = NO;
     self.publishToZipFile = NO;
 
     self.deviceOrientationLandscapeLeft = YES;
     self.deviceOrientationLandscapeRight = YES;
-    self.resourceAutoScaleFactor = 4;
-    
+
     self.publishEnabledIOS = YES;
     self.publishEnabledAndroid = YES;
 
-    self.publishResolution_ios_phone = YES;
-    self.publishResolution_ios_phonehd = YES;
-    self.publishResolution_ios_tablet = YES;
-    self.publishResolution_ios_tablethd = YES;
-    self.publishResolution_android_phone = YES;
-    self.publishResolution_android_phonehd = YES;
-    self.publishResolution_android_tablet = YES;
-    self.publishResolution_android_tablethd = YES;
-    
+    self.exporter = kCCBDefaultExportPlugIn;
+
     self.publishEnvironment = kCCBPublishEnvironmentDevelop;
 
-    self.publishAudioQuality_ios = DEFAULT_AUDIO_QUALITY;
-    self.publishAudioQuality_android = DEFAULT_AUDIO_QUALITY;
-    
     self.tabletPositionScaleFactor = 2.0f;
 
     self.canUpdateCocos2D = NO;
@@ -124,16 +139,15 @@
         return NULL;
     }
 
-	self.engine = (CCBTargetEngine)[[dict objectForKey:@"engine"] intValue];
-    self.resourcePaths = [dict objectForKey:@"resourcePaths"];
+    self.packages = [dict objectForKey:PROJECTSETTINGS_KEY_PACKAGES];
 
-    self.publishDirectory = [dict objectForKey:@"publishDirectory"];
-    if (!_publishDirectory)
+    self.publishDirectoryIOS = [dict objectForKey:PROJECTSETTINGS_KEY_PUBLISHDIR_IOS];
+    if (!_publishDirectoryIOS)
     {
-        self.publishDirectory = @"";
+        self.publishDirectoryIOS = @"";
     }
 
-    self.publishDirectoryAndroid = [dict objectForKey:@"publishDirectoryAndroid"];
+    self.publishDirectoryAndroid = [dict objectForKey:PROJECTSETTINGS_KEY_PUBLISHDIR_ANDROID];
     if (!_publishDirectoryAndroid)
     {
         self.publishDirectoryAndroid = @"";
@@ -142,58 +156,28 @@
     self.publishEnabledIOS = [[dict objectForKey:@"publishEnablediPhone"] boolValue];
     self.publishEnabledAndroid = [[dict objectForKey:@"publishEnabledAndroid"] boolValue];
 
-    self.publishResolution_ios_phone = [[dict objectForKey:@"publishResolution_ios_phone"] boolValue];
-    self.publishResolution_ios_phonehd = [[dict objectForKey:@"publishResolution_ios_phonehd"] boolValue];
-    self.publishResolution_ios_tablet = [[dict objectForKey:@"publishResolution_ios_tablet"] boolValue];
-    self.publishResolution_ios_tablethd = [[dict objectForKey:@"publishResolution_ios_tablethd"] boolValue];
-    self.publishResolution_android_phone = [[dict objectForKey:@"publishResolution_android_phone"] boolValue];
-    self.publishResolution_android_phonehd = [[dict objectForKey:@"publishResolution_android_phonehd"] boolValue];
-    self.publishResolution_android_tablet = [[dict objectForKey:@"publishResolution_android_tablet"] boolValue];
-    self.publishResolution_android_tablethd = [[dict objectForKey:@"publishResolution_android_tablethd"] boolValue];
-    
-    self.publishAudioQuality_ios = [[dict objectForKey:@"publishAudioQuality_ios"]intValue];
-    if (!self.publishAudioQuality_ios)
-    {
-        self.publishAudioQuality_ios = DEFAULT_AUDIO_QUALITY;
-    }
-
-    self.publishAudioQuality_android = [[dict objectForKey:@"publishAudioQuality_android"]intValue];
-    if (!self.publishAudioQuality_android)
-    {
-        self.publishAudioQuality_android = DEFAULT_AUDIO_QUALITY;
-    }
-
     self.publishToZipFile = [[dict objectForKey:@"publishToZipFile"] boolValue];
-    self.onlyPublishCCBs = [[dict objectForKey:@"onlyPublishCCBs"] boolValue];
-    self.exporter = [dict objectForKey:@"exporter"];
+
+    self.exporter = [dict objectForKey:@"exporter"]
+        ? [dict objectForKey:@"exporter"]
+        : kCCBDefaultExportPlugIn;
+
     self.deviceOrientationPortrait = [[dict objectForKey:@"deviceOrientationPortrait"] boolValue];
     self.deviceOrientationUpsideDown = [[dict objectForKey:@"deviceOrientationUpsideDown"] boolValue];
     self.deviceOrientationLandscapeLeft = [[dict objectForKey:@"deviceOrientationLandscapeLeft"] boolValue];
     self.deviceOrientationLandscapeRight = [[dict objectForKey:@"deviceOrientationLandscapeRight"] boolValue];
 
-    self.resourceAutoScaleFactor = [[dict objectForKey:@"resourceAutoScaleFactor"]intValue];
-    if (_resourceAutoScaleFactor == 0)
-    {
-        self.resourceAutoScaleFactor = 4;
-    }
-
     self.cocos2dUpdateIgnoredVersions = [[dict objectForKey:@"cocos2dUpdateIgnoredVersions"] mutableCopy];
 
     self.deviceScaling = [[dict objectForKey:@"deviceScaling"] intValue];
     self.defaultOrientation = [[dict objectForKey:@"defaultOrientation"] intValue];
-    self.designTarget = [[dict objectForKey:@"designTarget"] intValue];
+    self.designTarget = (SBDesignTarget) [[dict objectForKey:@"designTarget"] intValue];
     
     self.tabletPositionScaleFactor = 2.0f;
 
     self.publishEnvironment = (CCBPublishEnvironment) [[dict objectForKey:@"publishEnvironment"] integerValue];
 
     self.resourceProperties = [[dict objectForKey:@"resourceProperties"] mutableCopy];
-
-    self.excludedFromPackageMigration = [[dict objectForKey:@"excludedFromPackageMigration"] boolValue];
-    if (!self.excludedFromPackageMigration)
-    {
-        self.excludedFromPackageMigration = NO;
-    }
 
     [self initializeVersionStringWithProjectDict:dict];
 
@@ -230,39 +214,23 @@
 {
     NSMutableDictionary* dict = [NSMutableDictionary dictionary];
 
-    dict[@"engine"] = @(_engine);
-
     dict[@"fileType"] = @"CocosBuilderProject";
-    dict[@"fileVersion"] = @kCCBProjectSettingsVersion;
-    dict[@"resourcePaths"] = _resourcePaths;
+    dict[PROJECTSETTINGS_KEY_FILEVERSION] = @kCCBProjectSettingsVersion;
+    dict[PROJECTSETTINGS_KEY_PACKAGES] = _packages;
     
-    dict[@"publishDirectory"] = _publishDirectory;
-    dict[@"publishDirectoryAndroid"] = _publishDirectoryAndroid;
+    dict[PROJECTSETTINGS_KEY_PUBLISHDIR_IOS] = _publishDirectoryIOS;
+    dict[PROJECTSETTINGS_KEY_PUBLISHDIR_ANDROID] = _publishDirectoryAndroid;
 
     dict[@"publishEnablediPhone"] = @(_publishEnabledIOS);
     dict[@"publishEnabledAndroid"] = @(_publishEnabledAndroid);
 
-    dict[@"publishResolution_ios_phone"] = @(_publishResolution_ios_phone);
-    dict[@"publishResolution_ios_phonehd"] = @(_publishResolution_ios_phonehd);
-    dict[@"publishResolution_ios_tablet"] = @(_publishResolution_ios_tablet);
-    dict[@"publishResolution_ios_tablethd"] = @(_publishResolution_ios_tablethd);
-    dict[@"publishResolution_android_phone"] = @(_publishResolution_android_phone);
-    dict[@"publishResolution_android_phonehd"] = @(_publishResolution_android_phonehd);
-    dict[@"publishResolution_android_tablet"] = @(_publishResolution_android_tablet);
-    dict[@"publishResolution_android_tablethd"] = @(_publishResolution_android_tablethd);
-    
-    dict[@"publishAudioQuality_ios"] = @(_publishAudioQuality_ios);
-    dict[@"publishAudioQuality_android"] = @(_publishAudioQuality_android);
-
     dict[@"publishToZipFile"] = @(_publishToZipFile);
-    dict[@"onlyPublishCCBs"] = @(_onlyPublishCCBs);
     dict[@"exporter"] = self.exporter;
     
     dict[@"deviceOrientationPortrait"] = @(_deviceOrientationPortrait);
     dict[@"deviceOrientationUpsideDown"] = @(_deviceOrientationUpsideDown);
     dict[@"deviceOrientationLandscapeLeft"] = @(_deviceOrientationLandscapeLeft);
     dict[@"deviceOrientationLandscapeRight"] = @(_deviceOrientationLandscapeRight);
-    dict[@"resourceAutoScaleFactor"] = @(_resourceAutoScaleFactor);
 
     dict[@"cocos2dUpdateIgnoredVersions"] = _cocos2dUpdateIgnoredVersions;
 
@@ -271,8 +239,6 @@
     dict[@"deviceScaling"] = @(_deviceScaling);
 
     dict[@"publishEnvironment"] = @(_publishEnvironment);
-
-    dict[@"excludedFromPackageMigration"] = @(_excludedFromPackageMigration);
 
     if (_resourceProperties)
     {
@@ -291,14 +257,14 @@
     return dict;
 }
 
-@dynamic absoluteResourcePaths;
-- (NSArray*) absoluteResourcePaths
+@dynamic absolutePackagePaths;
+- (NSArray*)absolutePackagePaths
 {
     NSString* projectDirectory = [self.projectPath stringByDeletingLastPathComponent];
     
     NSMutableArray* paths = [NSMutableArray array];
     
-    for (NSDictionary* dict in _resourcePaths)
+    for (NSDictionary* dict in _packages)
     {
         NSString* path = dict[@"path"];
         NSString* absPath = [path absolutePathFromBaseDirPath:projectDirectory];
@@ -331,14 +297,17 @@
 - (NSString*) displayCacheDirectory
 {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    return [[[paths[0] stringByAppendingPathComponent:@"com.cocosbuilder.CocosBuilder"] stringByAppendingPathComponent:@"display"]stringByAppendingPathComponent:self.projectPathHashed];
+    return [[[paths[0] stringByAppendingPathComponent:PUBLISHER_CACHE_DIRECTORY_NAME] stringByAppendingPathComponent:@"display"]stringByAppendingPathComponent:self.projectPathHashed];
 }
 
 @dynamic tempSpriteSheetCacheDirectory;
 - (NSString*) tempSpriteSheetCacheDirectory
 {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    return [[paths[0] stringByAppendingPathComponent:@"com.cocosbuilder.CocosBuilder"] stringByAppendingPathComponent:@"spritesheet"];
+    NSString *cacheDir = [paths[0] stringByAppendingPathComponent:PUBLISHER_CACHE_DIRECTORY_NAME];
+    NSString *projectDir = [NSString stringWithFormat:@"%@-spritesheet", [_projectPath lastPathComponent]];
+
+    return [cacheDir stringByAppendingPathComponent:projectDir];
 }
 
 - (void) _storeDelayed
@@ -398,18 +367,6 @@
             NSLog(@"Error removing intermediate filelookup file %@ - %@", intermediateFileLookup, error);
         }
     }
-}
-
-- (NSArray *)allResourcesRelativePaths
-{
-    NSMutableArray *result = [NSMutableArray array];
-
-    for (NSString *relPath in _resourceProperties)
-    {
-        [result addObject:[relPath copy]];
-    }
-
-    return result;
 }
 
 - (void)setProperty:(id)newValue forResource:(RMResource *)res andKey:(id <NSCopying>) key
@@ -566,85 +523,84 @@
     }
 }
 
-- (BOOL)removeResourcePath:(NSString *)path error:(NSError **)error
+- (BOOL)removePackageWithFullPath:(NSString *)fullPath error:(NSError **)error
 {
     NSString *projectDir = [self.projectPath stringByDeletingLastPathComponent];
-    NSString *relResourcePath = [path relativePathFromBaseDirPath:projectDir];
+    NSString *relPackagePath = [fullPath relativePathFromBaseDirPath:projectDir];
 
-    for (NSMutableDictionary *resourcePath in [_resourcePaths copy])
+    for (NSMutableDictionary *packageDict in [_packages copy])
     {
-        NSString *relPath = resourcePath[@"path"];
-        if ([relPath isEqualToString:relResourcePath])
+        NSString *relPath = packageDict[@"path"];
+        if ([relPath isEqualToString:relPackagePath])
         {
-            [_resourcePaths removeObject:resourcePath];
+            [_packages removeObject:packageDict];
             return YES;
         }
     }
 
-    [NSError setNewErrorWithCode:error
-                            code:SBResourcePathNotInProjectError
-                         message:[NSString stringWithFormat:@"Cannot remove path \"%@\" does not exist in project.", relResourcePath]];
+    [NSError setNewErrorWithErrorPointer:error
+                                    code:SBPackageNotInProjectError
+                                 message:[NSString stringWithFormat:@"Cannot remove path \"%@\" does not exist in project.", relPackagePath]];
     return NO;
 }
 
-- (BOOL)addResourcePath:(NSString *)path error:(NSError **)error
+- (BOOL)addPackageWithFullPath:(NSString *)fullPath error:(NSError **)error
 {
-    if (![self isResourcePathInProject:path])
+    if (![self isPackageWithFullPathInProject:fullPath])
     {
-        NSString *relResourcePath = [path relativePathFromBaseDirPath:self.projectPathDir];
+        NSString *relPackagePath = [fullPath relativePathFromBaseDirPath:self.projectPathDir];
 
-        [_resourcePaths addObject:[@{@"path" : relResourcePath} mutableCopy]];
+        [_packages addObject:[@{@"path" : relPackagePath} mutableCopy]];
         return YES;
     }
     else
     {
-        [NSError setNewErrorWithCode:error code:SBDuplicateResourcePathError message:[NSString stringWithFormat:@"Cannot create %@, already present.", [path lastPathComponent]]];
+        [NSError setNewErrorWithErrorPointer:error code:SBDuplicatePackageError message:[NSString stringWithFormat:@"Cannot create %@, already present.", [fullPath lastPathComponent]]];
         return NO;
     }
 }
 
-- (BOOL)isResourcePathInProject:(NSString *)resourcePath
+- (BOOL)isPackageWithFullPathInProject:(NSString *)fullPath
 {
-    NSString *relResourcePath = [resourcePath relativePathFromBaseDirPath:self.projectPathDir];
+    NSString *relPackagePath = [fullPath relativePathFromBaseDirPath:self.projectPathDir];
 
-    return [self resourcePathForRelativePath:relResourcePath] != nil;
+    return [self packagePathForRelativePath:relPackagePath] != nil;
 }
 
-- (NSMutableDictionary *)resourcePathForRelativePath:(NSString *)path
+- (NSMutableDictionary *)packagePathForRelativePath:(NSString *)path
 {
-    for (NSMutableDictionary *resourcePath in _resourcePaths)
+    for (NSMutableDictionary *packagePath in _packages)
     {
-        NSString *aResourcePath = resourcePath[@"path"];
-        if ([aResourcePath isEqualToString:path])
+        NSString *aPackagePath = packagePath[@"path"];
+        if ([aPackagePath isEqualToString:path])
         {
-            return resourcePath;
+            return packagePath;
         }
     }
     return nil;
 }
 
-- (BOOL)moveResourcePathFrom:(NSString *)fromPath toPath:(NSString *)toPath error:(NSError **)error
+- (BOOL)movePackageWithFullPathFrom:(NSString *)fromPath toFullPath:(NSString *)toFullPath error:(NSError **)error
 {
-    if ([self isResourcePathInProject:toPath])
+    if ([self isPackageWithFullPathInProject:toFullPath])
     {
-        [NSError setNewErrorWithCode:error code:SBDuplicateResourcePathError message:@"Cannot move resource path, there's already one with the same name."];
+        [NSError setNewErrorWithErrorPointer:error code:SBDuplicatePackageError message:@"Cannot move package, there's already one with the same name."];
         return NO;
     }
 
-    NSString *relResourcePathOld = [fromPath relativePathFromBaseDirPath:self.projectPathDir];
-    NSString *relResourcePathNew = [toPath relativePathFromBaseDirPath:self.projectPathDir];
+    NSString *relPackagePathOld = [fromPath relativePathFromBaseDirPath:self.projectPathDir];
+    NSString *relPackagePathNew = [toFullPath relativePathFromBaseDirPath:self.projectPathDir];
 
-    NSMutableDictionary *resourcePath = [self resourcePathForRelativePath:relResourcePathOld];
-    resourcePath[@"path"] = relResourcePathNew;
+    NSMutableDictionary *packageDict = [self packagePathForRelativePath:relPackagePathOld];
+    packageDict[@"path"] = relPackagePathNew;
 
-    [self movedResourceFrom:relResourcePathOld to:relResourcePathNew fromFullPath:fromPath toFullPath:toPath];
+    [self movedResourceFrom:relPackagePathOld to:relPackagePathNew fromFullPath:fromPath toFullPath:toFullPath];
     return YES;
 }
 
-// TODO: remove after transition state to ResourcePath class
-- (NSString *)fullPathForResourcePathDict:(NSMutableDictionary *)resourcePathDict
+- (NSString *)fullPathForPackageDict:(NSMutableDictionary *)packageDict
 {
-    return [self.projectPathDir stringByAppendingPathComponent:resourcePathDict[@"path"]];
+    return [self.projectPathDir stringByAppendingPathComponent:packageDict[@"path"]];
 }
 
 - (NSString* ) getVersion
@@ -690,11 +646,6 @@
         : anArray;
 }
 
--(void) setPublishResolution_ios_phone:(BOOL)publishResolution
-{
-    _publishResolution_ios_phone = publishResolution;
-}
-
 - (void)flagFilesDirtyWithWarnings:(CCBWarnings *)warnings
 {
 	for (CCBWarning *warning in warnings.warnings)
@@ -713,15 +664,20 @@
 
 - (NSString *)findRelativePathInPackagesForAbsolutePath:(NSString *)absolutePath
 {
-    for (NSString *absoluteResourcePath in self.absoluteResourcePaths)
+    for (NSString *absolutePackagePath in self.absolutePackagePaths)
     {
-        if ([absolutePath hasPrefix:absoluteResourcePath])
+        if ([absolutePath hasPrefix:absolutePackagePath])
         {
-            return [absolutePath substringFromIndex:[absoluteResourcePath length] + 1];
+            return [absolutePath substringFromIndex:[absolutePackagePath length] + 1];
         }
     }
 
     return nil;
+}
+
+- (NSString *)projectName
+{
+    return [[self.projectPath lastPathComponent] stringByDeletingPathExtension];
 }
 
 @end

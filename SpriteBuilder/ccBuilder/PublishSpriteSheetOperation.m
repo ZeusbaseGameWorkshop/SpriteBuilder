@@ -6,6 +6,7 @@
 #import "ProjectSettings.h"
 #import "ResourcePropertyKeys.h"
 #import "MiscConstants.h"
+#import "NSString+Publishing.h"
 
 
 @interface PublishSpriteSheetOperation()
@@ -55,7 +56,7 @@ static NSMutableSet *__spriteSheetPreviewsGenerated;
 {
     NSAssert(_spriteSheetFile != nil, @"spriteSheetFile should not be nil");
     NSAssert(_subPath != nil, @"subPath should not be nil");
-    NSAssert(_srcDirs != nil, @"srcDirs should not be nil");
+    NSAssert(_srcDir != nil, @"srcDir should not be nil");
     NSAssert(_resolution != nil, @"resolution should not be nil");
     NSAssert(_srcSpriteSheetDate != nil, @"srcSpriteSheetDate should not be nil");
     NSAssert(_publishDirectory != nil, @"publishDirectory should not be nil");
@@ -66,11 +67,14 @@ static NSMutableSet *__spriteSheetPreviewsGenerated;
 {
     [_publishingTaskStatusProgress updateStatusText:[NSString stringWithFormat:@"Generating sprite sheet %@...", [_subPath lastPathComponent]]];
 
+    self.spriteSheetFile = [_spriteSheetFile filepathWithResolutionTag:_resolution];
+
     [self loadSettings];
 
     [self configurePacker];
 
-    NSArray *createdFiles = [_packer createTextureAtlasFromDirectoryPaths:_srcDirs];
+    NSString *suffix = [NSString stringWithFormat:@"-%dx", self.resolution.intValue];
+    NSArray *createdFiles = [_packer createTextureAtlasFromDirectoryPath:_srcDir withSuffix:suffix];
 
     [self addCreatedPNGFilesToCreatedFilesSet:createdFiles];
 
@@ -154,19 +158,15 @@ static NSMutableSet *__spriteSheetPreviewsGenerated;
 
 - (void)setTextureMaxSize
 {
-    if ([_resolution isEqualToString:RESOLUTION_PHONE])
+    if ([_resolution unsignedIntegerValue] == 1)
     {
         _packer.maxTextureSize = 1024;
     }
-    else if ([_resolution isEqualToString:RESOLUTION_PHONE_HD])
+    else if ([_resolution unsignedIntegerValue] == 2)
     {
         _packer.maxTextureSize = 2048;
     }
-    else if ([_resolution isEqualToString:RESOLUTION_TABLET])
-    {
-        _packer.maxTextureSize = 2048;
-    }
-    else if ([_resolution isEqualToString:RESOLUTION_TABLET_HD])
+    else if ([_resolution unsignedIntegerValue] == 4)
     {
         _packer.maxTextureSize = 4096;
     }
@@ -191,8 +191,8 @@ static NSMutableSet *__spriteSheetPreviewsGenerated;
 
 - (NSString *)description
 {
-    return [NSString stringWithFormat:@"file: %@, res: %@, osType: %i, filefull: %@, srcdirs: %@, publishDirectory: %@, date: %@",
-                                      [_spriteSheetFile lastPathComponent], _resolution, _osType, _spriteSheetFile, _srcDirs, _publishDirectory, _srcSpriteSheetDate];
+    return [NSString stringWithFormat:@"file: %@, res: %@, osType: %i, filefull: %@, srcdir: %@, publishDirectory: %@, date: %@",
+                                      [_spriteSheetFile lastPathComponent], _resolution, _osType, _spriteSheetFile, _srcDir, _publishDirectory, _srcSpriteSheetDate];
 }
 
 

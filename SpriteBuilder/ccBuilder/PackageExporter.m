@@ -1,6 +1,6 @@
 #import "PackageExporter.h"
 #import "RMPackage.h"
-#import "SBErrors.h"
+#import "Errors.h"
 #import "NSError+SBErrors.h"
 
 @implementation PackageExporter
@@ -25,7 +25,7 @@
 {
     if ([self isPackageValid:package])
     {
-        [NSError setNewErrorWithCode:error code:SBPackageExportInvalidPackageError message:[NSString stringWithFormat:@"Internal error: Invalid package %@ given.", package]];
+        [NSError setNewErrorWithErrorPointer:error code:SBPackageExportInvalidPackageError message:[NSString stringWithFormat:@"Internal error: Invalid package %@ given.", package]];
         return NO;
     }
 

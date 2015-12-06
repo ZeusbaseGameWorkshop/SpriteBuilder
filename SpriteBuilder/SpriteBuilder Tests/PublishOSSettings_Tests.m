@@ -9,6 +9,7 @@
 #import <XCTest/XCTest.h>
 #import "PublishOSSettings.h"
 #import "MiscConstants.h"
+#import "PublishResolutions.h"
 
 @interface PublishOSSettings_Tests : XCTestCase
 
@@ -25,36 +26,20 @@
     self.settings = [[PublishOSSettings alloc] init];
 }
 
-- (void)testDefaultValuesAndSettingSome
-{
-    _settings.resolution_tablethd = NO;
-    XCTAssertFalse([_settings.resolutions containsObject:@"tablethd"]);
-    XCTAssertTrue([_settings.resolutions containsObject:@"tablet"]);
-    XCTAssertTrue([_settings.resolutions containsObject:@"phone"]);
-    XCTAssertTrue([_settings.resolutions containsObject:@"phonehd"]);
-
-    _settings.resolutions = @[@"tablethd", @"phonehd"];
-    XCTAssertTrue(_settings.resolution_tablethd);
-    XCTAssertTrue(_settings.resolution_phonehd);
-    XCTAssertFalse(_settings.resolution_tablet);
-    XCTAssertFalse(_settings.resolution_phone);
-}
-
 - (void)testDictionaryInitializerAndExport
 {
-    _settings.resolution_tablet = NO;
-    _settings.resolution_phonehd = NO;
-    _settings.resolution_tablethd = YES;
-    _settings.resolution_phone = YES;
+    _settings.resolutions.resolution_1x = NO;
+    _settings.resolutions.resolution_2x = YES;
+    _settings.resolutions.resolution_4x = YES;
+
     _settings.audio_quality = 7;
 
     NSDictionary *dict = [_settings toDictionary];
 
     PublishOSSettings *publishOSSettings = [[PublishOSSettings alloc] initWithDictionary:dict];
-    XCTAssertTrue([publishOSSettings.resolutions containsObject:RESOLUTION_TABLET_HD]);
-    XCTAssertTrue([publishOSSettings.resolutions containsObject:RESOLUTION_PHONE]);
-    XCTAssertFalse([publishOSSettings.resolutions containsObject:RESOLUTION_TABLET]);
-    XCTAssertFalse([publishOSSettings.resolutions containsObject:RESOLUTION_PHONE_HD]);
+    XCTAssertFalse(publishOSSettings.resolutions.resolution_1x);
+    XCTAssertTrue(publishOSSettings.resolutions.resolution_2x);
+    XCTAssertTrue(publishOSSettings.resolutions.resolution_4x);
 
     XCTAssertEqual(publishOSSettings.audio_quality, 7);
 }

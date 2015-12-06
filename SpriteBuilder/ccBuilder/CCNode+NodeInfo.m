@@ -33,8 +33,8 @@
 #import "SequencerSequence.h"
 #import "PositionPropertySetter.h"
 #import "TexturePropertySetter.h"
-#import "CCBWriterInternal.h"
-#import "CCBReaderInternal.h"
+#import "CCBDictionaryWriter.h"
+#import "CCBDictionaryReader.h"
 #import "CCBDocument.h"
 #import "CustomPropSetting.h"
 #import "CocosScene.h"
@@ -362,7 +362,7 @@ NSString * kAnimationOfPhysicsWarning = @"kAnimationOfPhysicsWarning";
     else if (type == kCCBKeyframeTypeColor3)
     {
         CCColor* colorValue = [self valueForKey:name];
-        return [CCBWriterInternal serializeColor4:colorValue];
+        return [CCBDictionaryWriter serializeColor4:colorValue];
     }
     else if (type == kCCBKeyframeTypeSpriteFrame)
     {
@@ -419,7 +419,7 @@ NSString * kAnimationOfPhysicsWarning = @"kAnimationOfPhysicsWarning";
     }
     else if (type == kCCBKeyframeTypeColor3)
     {
-        CCColor* colorValue = [CCBReaderInternal deserializeColor4:value];
+        CCColor* colorValue = [CCBDictionaryReader deserializeColor4:value];
         [self setValue:colorValue forKey:propName];
         
     }
@@ -893,16 +893,30 @@ NSString * kAnimationOfPhysicsWarning = @"kAnimationOfPhysicsWarning";
     return NO;
 }
 
+<<<<<<< HEAD
+- (GLKMatrix4) startMatrix;
+=======
 - (CGAffineTransform) startTransform;
+>>>>>>> origin/v1.4
 {
     NodeInfo* info = self.userObject;
-    return info.startTransform;
+    return info.startMatrix;
+}
+
+-(CGAffineTransform)startTransform
+{
+    GLKMatrix4 m = self.startMatrix;
+    return CGAffineTransformMake(m.m[0], m.m[1], m.m[4], m.m[5], m.m[12], m.m[13]);
 }
 
 - (CGPoint) transformStartPosition
 {
     NodeInfo* info = self.userObject;
-    return CGPointApplyAffineTransform(self.anchorPointInPoints, info.startTransform);
+    CGPoint anchor = self.anchorPointInPoints;
+    GLKVector4 p = GLKMatrix4MultiplyVector4(info.startMatrix, GLKVector4Make(anchor.x, anchor.y, 0.0, 1.0));
+    
+    // Ignore z and perspective divide?
+    return CGPointMake(p.x, p.y);
 }
 
 - (CGPoint) startAnchorPoint
@@ -914,8 +928,8 @@ NSString * kAnimationOfPhysicsWarning = @"kAnimationOfPhysicsWarning";
 - (void) cacheStartTransformAndAnchor
 {
     NodeInfo* info = self.userObject;
-    info.startTransform = self.nodeToWorldTransform;
-		info.startAnchorPoint = self.anchorPoint;
+    info.startMatrix = self.nodeToWorldMatrix;
+    info.startAnchorPoint = self.anchorPoint;
 }
 
 - (void) setUsesFlashSkew:(BOOL)seqExpanded
